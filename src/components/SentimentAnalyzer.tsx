@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { ArrowRight, AlertTriangle, Check, Loader2 } from 'lucide-react';
 
@@ -10,6 +9,18 @@ const SentimentAnalyzer: React.FC = () => {
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setNewsUrl(e.target.value);
+  };
+
+  // Helper function to ensure URL has proper scheme
+  const ensureHttpsPrefix = (url: string): string => {
+    if (!url) return url;
+    
+    // If the URL doesn't start with http:// or https://, add https://
+    if (!url.match(/^https?:\/\//i)) {
+      return `https://${url}`;
+    }
+    
+    return url;
   };
 
   const analyzeSentiment = () => {
@@ -24,18 +35,42 @@ const SentimentAnalyzer: React.FC = () => {
       return;
     }
 
-    // Simulating API call since we can't access the actual API
-    setTimeout(() => {
-      const randomSentiment = Math.floor(Math.random() * 3);
-      const sentiments = [
-        { value: 'Positive', type: 'positive' as const },
-        { value: 'Neutral', type: 'neutral' as const },
-        { value: 'Negative', type: 'negative' as const }
-      ];
-      
-      setSentiment(sentiments[randomSentiment]);
+    // Ensure the URL has the proper scheme before sending to backend
+    const formattedUrl = ensureHttpsPrefix(newsUrl);
+    console.log('Analyzing URL:', formattedUrl);
+
+    // Fetch from the proxy endpoint configured in vite.config.ts
+    fetch('/api/predict', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ news_url: formattedUrl }),
+    })
+    .then(response => {
+      if (!response.ok) {
+        throw new Error(`Network response was not ok: ${response.status}`);
+      }
+      return response.json();
+    })
+    .then(data => {
+      console.log('Response data:', data);
+      if (data.error) {
+        setAlert({ message: data.error, type: 'error' });
+      } else {
+        setSentiment({
+          value: data.sentiment,
+          type: data.sentiment.toLowerCase() as 'positive' | 'neutral' | 'negative'
+        });
+      }
+    })
+    .catch(error => {
+      console.error('Error analyzing sentiment:', error);
+      setAlert({ message: 'Failed to analyze sentiment: ' + error.message, type: 'error' });
+    })
+    .finally(() => {
       setIsLoading(false);
-    }, 1500);
+    });
   };
 
   return (
